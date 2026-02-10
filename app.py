@@ -4,8 +4,13 @@ import plotly.express as px
 import utils 
 from datetime import datetime
 
-# Configurare pagină (Trebuie să fie prima comandă Streamlit)
-st.set_page_config(page_title="Portofoliu Investiții", layout="wide")
+# --- CONFIGURARE PAGINĂ (Trebuie să fie prima linie executabilă) ---
+st.set_page_config(
+    page_title="Portofoliu Investiții", 
+    page_icon="📈", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # --- PAZNICUL (Codul de Securitate) ---
 def check_password():
@@ -37,15 +42,6 @@ def check_password():
 if not check_password():
     st.stop()
 
-
-
-# Configurare Pagina
-st.set_page_config(
-    page_title="Portofoliu Investiții", 
-    page_icon="📈", 
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # --- FUNCTII AUXILIARE UI ---
 def make_chart_transparent(fig):
@@ -86,7 +82,8 @@ with st.sidebar:
             submitted = st.form_submit_button("💾 Salvează Tranzacția", use_container_width=True)
             
             if submitted and ticker and shares > 0 and price > 0:
-                save_transaction(date, ticker, ttype, shares, price, comm)
+                # AICI ERA EROAREA: Trebuie utils.save_transaction
+                utils.save_transaction(date, ticker, ttype, shares, price, comm)
                 st.toast(f"✅ {ticker} salvat cu succes!", icon="🎉")
                 st.cache_data.clear()
                 st.rerun()
@@ -97,9 +94,9 @@ with st.sidebar:
 st.title("📈 Manager Portofoliu")
 st.markdown("---")
 
-# 1. Încărcare Date Backend
-df_tx = load_transactions()
-df_portfolio = process_portfolio(df_tx)
+# 1. Încărcare Date Backend (AICI ERA EROAREA PRINCIPALĂ)
+df_tx = utils.load_transactions()       # Am adaugat utils.
+df_portfolio = utils.process_portfolio(df_tx) # Am adaugat utils.
 
 # Fetch date live doar dacă avem portofoliu
 tickers = []
@@ -108,7 +105,8 @@ history_data = pd.DataFrame()
 
 if not df_portfolio.empty:
     tickers = df_portfolio["Ticker"].tolist()
-    current_prices, history_data = fetch_market_data(tickers)
+    # Am adaugat utils.
+    current_prices, history_data = utils.fetch_market_data(tickers)
 
 # 2. Structura Tab-urilor
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -121,7 +119,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 # -----------------------------------------------------------
-# TAB 1: PORTOFOLIU GENERAL (MODIFICAT CU EXPLICAȚII)
+# TAB 1: PORTOFOLIU GENERAL
 # -----------------------------------------------------------
 with tab1:
     if df_portfolio.empty:
@@ -166,34 +164,13 @@ with tab1:
                 "Randament (%)": "{:+.2f}%"
             }).background_gradient(cmap="RdYlGn", subset=["Randament (%)"], vmin=-20, vmax=20),
             column_config={
-                "Ticker": st.column_config.Column(
-                    "Ticker",
-                    help="Simbolul unic al companiei la bursă (ex: TSLA)."
-                ),
-                "Acțiuni": st.column_config.NumberColumn(
-                    "Acțiuni",
-                    help="Numărul de bucăți pe care le deții acum."
-                ),
-                "Total Investit ($)": st.column_config.NumberColumn(
-                    "Total Investit ($)",
-                    help="Costul total de achiziție (Preț acțiune + Comisioane)."
-                ),
-                "Preț Curent ($)": st.column_config.NumberColumn(
-                    "Preț Curent ($)",
-                    help="Prețul unei singure acțiuni pe piață în timp real."
-                ),
-                "Valoare Curentă ($)": st.column_config.NumberColumn(
-                    "Valoare Curentă ($)",
-                    help="Cât valorează deținerea ta acum (Acțiuni x Preț Curent)."
-                ),
-                "Profit/Pierdere ($)": st.column_config.NumberColumn(
-                    "Profit/Pierdere ($)",
-                    help="Câți dolari ai câștigat (+) sau pierdut (-) față de investiția inițială."
-                ),
-                "Randament (%)": st.column_config.NumberColumn(
-                    "Randament (%)",
-                    help="Eficiența investiției. Cât la sută ai câștigat peste suma investită."
-                )
+                "Ticker": st.column_config.Column("Ticker", help="Simbolul unic al companiei la bursă."),
+                "Acțiuni": st.column_config.NumberColumn("Acțiuni", help="Numărul de bucăți pe care le deții acum."),
+                "Total Investit ($)": st.column_config.NumberColumn("Total Investit ($)", help="Costul total de achiziție."),
+                "Preț Curent ($)": st.column_config.NumberColumn("Preț Curent ($)", help="Prețul pieței."),
+                "Valoare Curentă ($)": st.column_config.NumberColumn("Valoare Curentă ($)", help="Valoarea actuală totală."),
+                "Profit/Pierdere ($)": st.column_config.NumberColumn("Profit/Pierdere ($)", help="Câștig/Pierdere în valoare absolută."),
+                "Randament (%)": st.column_config.NumberColumn("Randament (%)", help="Eficiența investiției.")
             },
             use_container_width=True,
             height=calculate_height(df_view)
@@ -253,7 +230,8 @@ with tab3:
     else:
         st.subheader("🏭 Expunere pe Industrii")
         
-        sector_map = get_sector_map(tickers)
+        # Adaugat utils.
+        sector_map = utils.get_sector_map(tickers)
         df_sector_view = df_view.copy()
         df_sector_view["Sector"] = df_sector_view["Ticker"].map(sector_map)
         
@@ -292,7 +270,7 @@ with tab3:
                         "Total Investit ($)": "${:,.2f}",
                         "Valoare Curentă ($)": "${:,.2f}",
                         "Profit/Pierdere ($)": "${:+,.2f}"
-                    }).applymap(
+                    }).map(
                         lambda x: 'color: #ff4b4b' if x < 0 else 'color: #3dd56d', 
                         subset=['Profit/Pierdere ($)']
                     ).apply(
@@ -315,8 +293,10 @@ with tab4:
         
         if selected_ticker and selected_ticker in history_data:
             price_series = history_data[selected_ticker]
-            metrics = calculate_metrics(selected_ticker, price_series)
-            sector = get_sector_map([selected_ticker]).get(selected_ticker, "-")
+            # Adaugat utils.
+            metrics = utils.calculate_metrics(selected_ticker, price_series)
+            # Adaugat utils.
+            sector = utils.get_sector_map([selected_ticker]).get(selected_ticker, "-")
             curr_price = current_prices.get(selected_ticker, 0)
             
             with st.container(border=True):
@@ -366,7 +346,8 @@ with tab5:
             st.error(f"⚠️ Ești pe cale să ștergi {len(rows_to_delete)} tranzacții.")
             if st.button("🔴 CONFIRMĂ ȘTERGEREA", use_container_width=True):
                 indices = rows_to_delete.index.tolist()
-                delete_transactions(indices)
+                # Adaugat utils.
+                utils.delete_transactions(indices)
                 st.toast("Tranzacții șterse!", icon="🗑️")
                 st.cache_data.clear()
                 st.rerun()
@@ -380,7 +361,8 @@ with tab6:
     if df_portfolio.empty:
         st.write("Adaugă acțiuni în portofoliu.")
     else:
-        saved_yields = load_dividend_settings()
+        # Adaugat utils.
+        saved_yields = utils.load_dividend_settings()
         new_settings = saved_yields.copy()
         
         c_div1, c_div2 = st.columns([1, 2])
@@ -397,7 +379,8 @@ with tab6:
                         has_changes = True
                 
                 if has_changes:
-                    save_dividend_settings(new_settings)
+                    # Adaugat utils.
+                    utils.save_dividend_settings(new_settings)
                     st.toast("Recalculez...", icon="💾")
                     st.rerun()
 
