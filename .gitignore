@@ -1,0 +1,18 @@
+# Ignora fisiere compilate
+__pycache__/
+*.pyc
+
+# Ignora setari specifice VS Code (optional)
+.vscode/
+
+# Ignora mediul virtual (unde sunt instalate bibliotecile)
+venv/
+.venv/
+env/
+
+# Ignora fisierele de date (daca vrei sa nu urci tranzactiile tale private pe net)
+transactions.json
+portfolio.csv
+
+# Ignora secretele Streamlit (parole etc)
+.streamlit/secrets.toml
