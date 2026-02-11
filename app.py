@@ -52,7 +52,7 @@ def calculate_height(df, min_rows=3, max_height=500):
     calc_height = (rows + 1) * 35 + 3 
     return min(calc_height, max_height)
 
-# --- SIDEBAR: ADAUGĂ TRANZACȚIE ---
+# --- SIDEBAR: ADAUGĂ TRANZACȚIE (MODIFICAT COMPLET) ---
 with st.sidebar:
     st.header("➕ Adaugă Operațiune")
     with st.container(border=True):
@@ -60,45 +60,51 @@ with st.sidebar:
             date = st.date_input("📅 Data")
             ticker = st.text_input("🔤 Simbol (ex: AAPL, TSLA)").upper()
             
-            c1, c2 = st.columns(2)
-            with c1:
-                ttype = st.selectbox("Tip", ["BUY", "SELL"])
-            with c2:
-                # 1. CANTITATE: 6 Zecimale
-                shares = st.number_input(
-                    "Cantitate", 
-                    min_value=0.000001, 
-                    step=0.000001, 
-                    format="%.6f"
-                )
-                
-            # 2. PRET: 6 Zecimale (ca să poți pune prețuri gen 0.003421)
-            price = st.number_input(
-                "💵 Preț execuție ($)", 
+            ttype = st.selectbox("Tip", ["BUY", "SELL"])
+            
+            # 1. CANTITATE
+            shares = st.number_input(
+                "🔢 Câte acțiuni ai primit?", 
                 min_value=0.000001, 
                 step=0.000001, 
-                format="%.6f"
+                format="%.6f",
+                help="Numărul de acțiuni (Units) din aplicația ta."
+            )
+
+            # 2. TOTAL BANI PLATITI
+            total_spent = st.number_input(
+                "💰 Câți bani ai plătit TOTAL? ($)",
+                min_value=0.01,
+                step=0.01,
+                format="%.2f",
+                help="Suma totală pe care ai scris-o când ai cumpărat."
             )
             
-            # 3. COMISION: 6 Zecimale
+            # 3. COMISION (Optional)
             comm = st.number_input(
                 "💸 Comision ($)", 
                 min_value=0.000000, 
                 step=0.000001, 
                 value=0.000000, 
-                format="%.6f",
-                help="Dacă ai cont în lei, pune valoarea convertită în $."
+                format="%.6f"
             )
+            
+            # --- CALCUL AUTOMAT PRET PE ACTIUNE ---
+            calculated_price = 0.0
+            if shares > 0 and total_spent > 0:
+                calculated_price = total_spent / shares
+                st.info(f"💡 Preț calculat per acțiune: **${calculated_price:,.2f}**")
             
             submitted = st.form_submit_button("💾 Salvează Tranzacția", use_container_width=True)
             
-            if submitted and ticker and shares > 0 and price > 0:
-                utils.save_transaction(date, ticker, ttype, shares, price, comm)
-                st.toast(f"✅ {ticker} salvat cu succes!", icon="🎉")
+            if submitted and ticker and shares > 0 and total_spent > 0:
+                # Salvăm folosind prețul calculat automat
+                utils.save_transaction(date, ticker, ttype, shares, calculated_price, comm)
+                st.toast(f"✅ {ticker} salvat! Preț calculat: ${calculated_price:.2f}", icon="🎉")
                 st.cache_data.clear()
                 st.rerun()
             
-    st.info("Pentru a șterge tranzacții greșite, mergi la tab-ul '📝 Istoric'.")
+    st.info("Mergi la '📝 Istoric' pentru a șterge tranzacțiile vechi greșite.")
 
 # --- TITLU PRINCIPAL ---
 st.title("📈 Manager Portofoliu")
@@ -158,12 +164,12 @@ with tab1:
         
         st.write("") 
 
-        # --- TABEL PORTOFOLIU (ZECIMALE MULTE) ---
+        # --- TABEL PORTOFOLIU ---
         st.dataframe(
             df_view,
             column_config={
                 "Ticker": st.column_config.TextColumn("Ticker"),
-                "Acțiuni": st.column_config.NumberColumn("Acțiuni", format="%.6f"), # 6 zecimale
+                "Acțiuni": st.column_config.NumberColumn("Acțiuni", format="%.6f"), 
                 "Total Investit ($)": st.column_config.NumberColumn("Investit", format="$%.2f"),
                 "Preț Curent ($)": st.column_config.NumberColumn("Preț Piață", format="$%.2f"),
                 "Valoare Curentă ($)": st.column_config.NumberColumn("Valoare Totală", format="$%.2f"),
@@ -295,8 +301,7 @@ with tab5:
             column_config={
                 "Selectează": st.column_config.CheckboxColumn("🗑️", width="small"),
                 "date": st.column_config.DateColumn("Data", format="YYYY-MM-DD"),
-                # MODIFICAT AICI PENTRU VIZUALIZARE CORECTA
-                "price": st.column_config.NumberColumn("Preț", format="%.6f"), 
+                "price": st.column_config.NumberColumn("Preț (Per Acțiune)", format="%.2f"), 
                 "commission": st.column_config.NumberColumn("Comision", format="%.6f"),
                 "shares": st.column_config.NumberColumn("Cantitate", format="%.6f"),
             },
