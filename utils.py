@@ -45,7 +45,7 @@ def load_transactions():
     try:
         sheet = connect_to_gsheet()
         
-        # Folosim get_all_values() care aduce totul ca o lista simpla (mai sigur decat get_all_records)
+        # Folosim get_all_values() care aduce totul ca o lista simpla
         all_values = sheet.get_all_values()
         
         # Daca e gol sau are doar header-ul
@@ -58,20 +58,21 @@ def load_transactions():
         
         df = pd.DataFrame(data, columns=headers)
         
-        # CURATENIE: Stergem spatiile goale din numele coloanelor (ex: "commission " devine "commission")
+        # CURATENIE: Stergem spatiile goale din numele coloanelor
         df.columns = df.columns.str.strip()
         
         # Verificam daca avem coloana critica
         if "commission" not in df.columns:
             # Incercam sa fim destepti: daca nu gasim 'commission', poate e coloana 6
             if len(df.columns) >= 6:
+                # --- FIX: Selectăm strict primele 6 coloane pentru a evita eroarea de mismatch ---
+                df = df.iloc[:, :6]
                 df.columns = ["date", "ticker", "type", "shares", "price", "commission"]
             else:
                 st.error(f"Eroare coloane Google Sheet. Coloanele gasite sunt: {list(df.columns)}")
                 return pd.DataFrame(columns=["date", "ticker", "type", "shares", "price", "commission"])
 
         # Conversii obligatorii (reparam virgule si transformam in numere)
-        # Inlocuim virgula cu punctul daca ai scris "0,5" in loc de "0.5" in Sheet
         df["shares"] = pd.to_numeric(df["shares"].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
         df["price"] = pd.to_numeric(df["price"].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
         df["commission"] = pd.to_numeric(df["commission"].astype(str).str.replace(',', '.'), errors='coerce').fillna(0.0)
@@ -90,8 +91,6 @@ def delete_transactions(indices_to_delete):
     sheet = connect_to_gsheet()
     
     # Sortam descrescator ca sa nu stricam ordinea cand stergem
-    # Atentie: Google Sheets incepe de la randul 1 (header), deci datele incep de la 2
-    # DataFrame index 0 = Sheet Row 2
     rows_to_delete_gsheet = [i + 2 for i in indices_to_delete]
     rows_to_delete_gsheet.sort(reverse=True)
     
@@ -112,7 +111,6 @@ def process_portfolio(df):
         price = row['price']
         comm = row['commission']
         
-        # Daca nu am mai intalnit compania, o initializam
         if ticker not in portfolio:
             portfolio[ticker] = {'shares': 0.0, 'invested': 0.0}
         
@@ -120,15 +118,13 @@ def process_portfolio(df):
             portfolio[ticker]['shares'] += shares
             portfolio[ticker]['invested'] += (shares * price) + comm
         elif row['type'] == 'SELL':
-            # La vanzare scadem proportional din costul mediu
             avg_price = portfolio[ticker]['invested'] / portfolio[ticker]['shares'] if portfolio[ticker]['shares'] > 0 else 0
             portfolio[ticker]['shares'] -= shares
             portfolio[ticker]['invested'] -= (shares * avg_price)
 
-    # Creare DataFrame final
     data = []
     for ticker, values in portfolio.items():
-        if values['shares'] > 0.001: # Filtram pozitiile inchise (aprox 0)
+        if values['shares'] > 0.001: 
             data.append({
                 "Ticker": ticker,
                 "Acțiuni": values['shares'],
@@ -143,24 +139,26 @@ def fetch_market_data(tickers):
     if not tickers:
         return {}, pd.DataFrame()
     
-    # Descarcam date pentru toti odata
     data = yf.download(tickers, period="1y", group_by='ticker', progress=False)
     
     current_prices = {}
     history = pd.DataFrame()
     
-    # Daca e un singur ticker, structura e diferita
     if len(tickers) == 1:
         t = tickers[0]
         try:
-            current_prices[t] = data['Close'].iloc[-1].item()
-            history[t] = data['Close']
+            # yfinance returneaza uneori structuri diferite pentru un singur ticker
+            if isinstance(data.columns, pd.MultiIndex):
+                 current_prices[t] = data[t]['Close'].iloc[-1].item()
+                 history[t] = data[t]['Close']
+            else:
+                 current_prices[t] = data['Close'].iloc[-1].item()
+                 history[t] = data['Close']
         except:
              current_prices[t] = 0.0
     else:
         for t in tickers:
             try:
-                # Accesam coloana Close pentru fiecare ticker
                 price = data[t]['Close'].iloc[-1]
                 current_prices[t] = float(price)
                 history[t] = data[t]['Close']
@@ -169,6 +167,8 @@ def fetch_market_data(tickers):
                 
     return current_prices, history
 
+# --- FIX: Am adaugat cache si aici, altfel aplicatia merge foarte greu ---
+@st.cache_data(ttl=86400) 
 def get_sector_map(tickers):
     """Aflam sectorul pentru fiecare companie folosind yfinance Ticker info."""
     sector_map = {}
@@ -182,13 +182,10 @@ def get_sector_map(tickers):
 
 def calculate_metrics(ticker, price_series):
     """Calculeaza volatilitatea si un verdict simplu."""
-    if price_series.empty:
+    if price_series is None or price_series.empty:
         return None
         
-    # Calculam modificarea zilnica procentuala
     daily_returns = price_series.pct_change().dropna()
-    
-    # Volatilitate anuala (deviatia standard * radacina din 252 zile lucratoare)
     volatility = daily_returns.std() * (252 ** 0.5)
     
     verdict = "Moderată"
