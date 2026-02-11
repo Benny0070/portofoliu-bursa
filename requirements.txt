@@ -4,4 +4,4 @@ yfinance
 plotly
 gspread
 oauth2client
-matplotlib
+fpdf
