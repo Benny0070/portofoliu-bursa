@@ -74,7 +74,9 @@ with st.sidebar:
             with c1:
                 ttype = st.selectbox("Tip", ["BUY", "SELL"])
             with c2:
-                shares = st.number_input("Cantitate", min_value=0.01, step=1.0)
+                # --- MODIFICARE 1: PRECIZIE INPUT ---
+                # Acum accepta 6 zecimale si pas mic (0.0001)
+                shares = st.number_input("Cantitate", min_value=0.000001, step=0.0001, format="%.6f")
                 
             price = st.number_input("💵 Preț execuție ($)", min_value=0.01, step=0.1)
             comm = st.number_input("💸 Comision ($)", min_value=0.0, step=0.1, value=0.0, help="Dacă ai cont în lei, pune 0.5% aici.")
@@ -82,7 +84,6 @@ with st.sidebar:
             submitted = st.form_submit_button("💾 Salvează Tranzacția", use_container_width=True)
             
             if submitted and ticker and shares > 0 and price > 0:
-                # AICI ERA EROAREA: Trebuie utils.save_transaction
                 utils.save_transaction(date, ticker, ttype, shares, price, comm)
                 st.toast(f"✅ {ticker} salvat cu succes!", icon="🎉")
                 st.cache_data.clear()
@@ -94,9 +95,9 @@ with st.sidebar:
 st.title("📈 Manager Portofoliu")
 st.markdown("---")
 
-# 1. Încărcare Date Backend (AICI ERA EROAREA PRINCIPALĂ)
-df_tx = utils.load_transactions()       # Am adaugat utils.
-df_portfolio = utils.process_portfolio(df_tx) # Am adaugat utils.
+# 1. Încărcare Date Backend
+df_tx = utils.load_transactions()       
+df_portfolio = utils.process_portfolio(df_tx) 
 
 # Fetch date live doar dacă avem portofoliu
 tickers = []
@@ -105,7 +106,6 @@ history_data = pd.DataFrame()
 
 if not df_portfolio.empty:
     tickers = df_portfolio["Ticker"].tolist()
-    # Am adaugat utils.
     current_prices, history_data = utils.fetch_market_data(tickers)
 
 # 2. Structura Tab-urilor
@@ -153,26 +153,43 @@ with tab1:
         
         st.write("") 
 
-        # --- TABEL PRINCIPAL CU TOOLTIPS ---
+        # --- TABEL PRINCIPAL (MODIFICAT PENTRU ZECIMALE SI EROARE MATPLOTLIB) ---
         st.dataframe(
-            df_view.set_index("Ticker").style.format({
-                "Acțiuni": "{:.2f}",
-                "Total Investit ($)": "${:,.2f}",
-                "Preț Curent ($)": "${:.2f}",
-                "Valoare Curentă ($)": "${:,.2f}",
-                "Profit/Pierdere ($)": "${:+,.2f}",
-                "Randament (%)": "{:+.2f}%"
-            }).background_gradient(cmap="RdYlGn", subset=["Randament (%)"], vmin=-20, vmax=20),
+            df_view,
             column_config={
-                "Ticker": st.column_config.Column("Ticker", help="Simbolul unic al companiei la bursă."),
-                "Acțiuni": st.column_config.NumberColumn("Acțiuni", help="Numărul de bucăți pe care le deții acum."),
-                "Total Investit ($)": st.column_config.NumberColumn("Total Investit ($)", help="Costul total de achiziție."),
-                "Preț Curent ($)": st.column_config.NumberColumn("Preț Curent ($)", help="Prețul pieței."),
-                "Valoare Curentă ($)": st.column_config.NumberColumn("Valoare Curentă ($)", help="Valoarea actuală totală."),
-                "Profit/Pierdere ($)": st.column_config.NumberColumn("Profit/Pierdere ($)", help="Câștig/Pierdere în valoare absolută."),
-                "Randament (%)": st.column_config.NumberColumn("Randament (%)", help="Eficiența investiției.")
+                "Ticker": st.column_config.TextColumn("Ticker", help="Simbolul unic al companiei."),
+                "Acțiuni": st.column_config.NumberColumn(
+                    "Acțiuni", 
+                    help="Numărul de bucăți.",
+                    format="%.6f" # AICI E CHEIA: Afiseaza 6 zecimale (0.032400)
+                ),
+                "Total Investit ($)": st.column_config.NumberColumn(
+                    "Investit", 
+                    help="Cost total achiziție.",
+                    format="$%.2f"
+                ),
+                "Preț Curent ($)": st.column_config.NumberColumn(
+                    "Preț Piață", 
+                    format="$%.2f"
+                ),
+                "Valoare Curentă ($)": st.column_config.NumberColumn(
+                    "Valoare Totală", 
+                    help="Valoarea actuală.",
+                    format="$%.2f"
+                ),
+                "Profit/Pierdere ($)": st.column_config.NumberColumn(
+                    "P/L ($)", 
+                    help="Câștig/Pierdere net.",
+                    format="$%.2f"
+                ),
+                "Randament (%)": st.column_config.NumberColumn(
+                    "Randament", 
+                    help="Eficiența investiției.",
+                    format="%.2f%%"
+                )
             },
             use_container_width=True,
+            hide_index=True,
             height=calculate_height(df_view)
         )
 
@@ -230,7 +247,6 @@ with tab3:
     else:
         st.subheader("🏭 Expunere pe Industrii")
         
-        # Adaugat utils.
         sector_map = utils.get_sector_map(tickers)
         df_sector_view = df_view.copy()
         df_sector_view["Sector"] = df_sector_view["Ticker"].map(sector_map)
@@ -293,9 +309,7 @@ with tab4:
         
         if selected_ticker and selected_ticker in history_data:
             price_series = history_data[selected_ticker]
-            # Adaugat utils.
             metrics = utils.calculate_metrics(selected_ticker, price_series)
-            # Adaugat utils.
             sector = utils.get_sector_map([selected_ticker]).get(selected_ticker, "-")
             curr_price = current_prices.get(selected_ticker, 0)
             
@@ -332,7 +346,7 @@ with tab5:
                 "date": st.column_config.DateColumn("Data", format="YYYY-MM-DD"),
                 "price": st.column_config.NumberColumn("Preț", format="$%.2f"),
                 "commission": st.column_config.NumberColumn("Comision", format="$%.2f"),
-                "shares": st.column_config.NumberColumn("Cantitate"),
+                "shares": st.column_config.NumberColumn("Cantitate", format="%.6f"), # Si aici vedem zecimalele
             },
             disabled=["ticker", "type", "shares", "price", "commission", "currency", "date"],
             hide_index=True,
@@ -346,7 +360,6 @@ with tab5:
             st.error(f"⚠️ Ești pe cale să ștergi {len(rows_to_delete)} tranzacții.")
             if st.button("🔴 CONFIRMĂ ȘTERGEREA", use_container_width=True):
                 indices = rows_to_delete.index.tolist()
-                # Adaugat utils.
                 utils.delete_transactions(indices)
                 st.toast("Tranzacții șterse!", icon="🗑️")
                 st.cache_data.clear()
@@ -361,7 +374,6 @@ with tab6:
     if df_portfolio.empty:
         st.write("Adaugă acțiuni în portofoliu.")
     else:
-        # Adaugat utils.
         saved_yields = utils.load_dividend_settings()
         new_settings = saved_yields.copy()
         
@@ -379,7 +391,6 @@ with tab6:
                         has_changes = True
                 
                 if has_changes:
-                    # Adaugat utils.
                     utils.save_dividend_settings(new_settings)
                     st.toast("Recalculez...", icon="💾")
                     st.rerun()
