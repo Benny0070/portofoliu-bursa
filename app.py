@@ -154,15 +154,21 @@ with tab1:
         total_profit = total_valoare - total_investit
         total_randament = (total_profit / total_investit * 100) if total_investit > 0 else 0
 
-        col1, col2, col3 = st.columns(3)
+# --- AM MODIFICAT AICI: 4 coloane în loc de 3 ---
+        col1, col2, col3, col4 = st.columns([2, 2, 2, 1.2]) 
         with col1:
             st.metric("💰 Total Investit", f"${total_investit:,.2f}")
         with col2:
             st.metric("💎 Valoare Curentă", f"${total_valoare:,.2f}")
         with col3:
             st.metric("🚀 Profit/Pierdere", f"${total_profit:,.2f}", delta=f"{total_randament:.2f}%")
+        with col4:
+            st.write("") # Adăugăm un mic spațiu invizibil ca butonul să fie aliniat vizual cu cifrele
+            if st.button("🔄 Actualizează", use_container_width=True, help="Descarcă prețurile live de pe bursă"):
+                st.cache_data.clear() # Șterge prețurile vechi din memorie
+                st.rerun() # Reîncarcă pagina instantaneu
         
-        st.write("") 
+        st.write("")
 
         # --- TABEL PORTOFOLIU ---
         st.dataframe(
@@ -365,3 +371,4 @@ with tab6:
             with st.container(border=True):
                 st.metric("💵 Venit Pasiv Estimat", f"${total_anual:,.2f}")
                 st.dataframe(pd.DataFrame(div_results).set_index("Ticker"), use_container_width=True)
+
