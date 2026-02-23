@@ -5,6 +5,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
 import os
+import time
 
 # --- CONFIGURARE GOOGLE SHEETS ---
 def connect_to_gsheet():
@@ -170,14 +171,37 @@ def fetch_market_data(tickers):
 # --- FIX: Am adaugat cache si aici, altfel aplicatia merge foarte greu ---
 @st.cache_data(ttl=86400) 
 def get_sector_map(tickers):
-    """Aflam sectorul pentru fiecare companie folosind yfinance Ticker info."""
+    """Aflam sectorul. Are plasa de siguranta + reincercare pentru erori de retea."""
+    # 1. Plasă de siguranță: Sectoare pre-salvate pentru companiile tale
+    fallback_sectors = {
+        "AAPL": "Technology", "NVDA": "Technology", "TSM": "Technology", 
+        "PEP": "Consumer Defensive", "STRL": "Industrials", 
+        "LRCX": "Technology", "DTM": "Energy", "KRYS": "Healthcare", 
+        "RTX": "Industrials", "KO": "Consumer Defensive", 
+        "UL": "Consumer Defensive", "UNA.AS": "Consumer Defensive",
+        "VRTX": "Healthcare"
+    }
+    
     sector_map = {}
     for t in tickers:
-        try:
-            info = yf.Ticker(t).info
-            sector_map[t] = info.get("sector", "Necunoscut")
-        except:
-            sector_map[t] = "Necunoscut"
+        # Daca este in lista de mai sus, ia sectorul instant, fara sa mai intrebe Yahoo
+        if t in fallback_sectors:
+            sector_map[t] = fallback_sectors[t]
+            continue
+            
+        # Daca e o companie NOUA, intreaba Yahoo Finance de 3 ori inainte sa renunte
+        sector = "Necunoscut"
+        for incercare in range(3):
+            try:
+                info = yf.Ticker(t).info
+                if "sector" in info:
+                    sector = info["sector"]
+                    break # A gasit, se opreste din incercari
+            except Exception:
+                time.sleep(0.5) # Ia o pauza mica si incearca iar
+        
+        sector_map[t] = sector
+        
     return sector_map
 
 def calculate_metrics(ticker, price_series):
@@ -208,3 +232,4 @@ def load_dividend_settings():
 def save_dividend_settings(settings):
     with open(DIV_FILE, "w") as f:
         json.dump(settings, f)
+
