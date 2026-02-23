@@ -135,7 +135,7 @@ def process_portfolio(df):
     return pd.DataFrame(data)
 
 # --- DATE DE PIATA ---
-@st.cache_data(ttl=600) # Cache 10 minute
+@st.cache_data(ttl=60) # Cache 1 minut
 def fetch_market_data(tickers):
     if not tickers:
         return {}, pd.DataFrame()
@@ -232,4 +232,5 @@ def load_dividend_settings():
 def save_dividend_settings(settings):
     with open(DIV_FILE, "w") as f:
         json.dump(settings, f)
+
 
